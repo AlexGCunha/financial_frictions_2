@@ -3,7 +3,7 @@
 # - Take a sample of RAIS firms and construct some metrics, per year
 # - Make the same thing for inspected firms
 # - It needs ff2_inspected_firms_local and its output file to be sent 
-#################D####################################################
+#####################################################################
 options(file.download.method="wininet")
 repository = "http://artifactory.bcnet.bcb.gov.br/artifactory/cran-remote/"
 
@@ -97,7 +97,8 @@ for (y in years){
 
   #Modifications in some variables
   rais = rais %>% 
-    mutate(wage = str_replace(wage_contr, ",", ".")) %>% 
+    mutate(wage = str_replace(wage_contr, ",", "."),
+           wage = as.integer(wage)) %>% 
     mutate_at(c('municipality',"wage","ind_cnae95"),as.integer) %>%
     #filter only individuals working in December
     filter(is.na(quit_reason) | quit_reason == "00") %>%
@@ -131,7 +132,8 @@ df = df %>%
 #prior to the inspections, so lets impute NA for other years
 df = df %>% 
   mutate(year_prior_inspection = year_decision - 1) %>% 
-  mutate(n_informal = ifelse(year == year_prior_inspection, n_informal, NA_integer_))
+  mutate(n_informal = ifelse(year == year_prior_inspection, n_informal, 
+                             NA_integer_))
   
 
 b = Sys.time()

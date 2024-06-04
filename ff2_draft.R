@@ -2,7 +2,6 @@ library(tidyverse)
 library(arrow)
 library(haven)
 
-#teste
 #See how outstanding loans evolve for a single loan
 getwd()
 years = c(2011:2011)
