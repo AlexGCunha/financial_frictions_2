@@ -36,6 +36,17 @@ sample_firms = rais %>%
   unique() %>% 
   pull()
 
+#Open cdi interest rates dataset to be used later
+#Merge with cdi dataset to create spread measure
+setwd(data_path)
+rates <- read_excel('cdi.xlsx',sheet='month') %>% 
+  select(c("time_id", "taxa")) %>% 
+  mutate(time_id = as.character(time_id),
+         taxa = taxa/100) %>% 
+  rename(yearmonth = time_id,
+         cdi = taxa)
+
+
 ############################################################
 #Construct loan rates based on new loans
 ############################################################
@@ -80,7 +91,9 @@ for (y in years){
       #Fill empty non performing loans and outstanding loans with 0
       mutate(across(c("loan_outstanding", "loan_arrears_90_180_days",
                       "loan_arrears_over_180_days", "loan_losses"), 
-                    ~ replace_na(.,0)))
+                    ~ replace_na(.,0))) %>% 
+      #transform loan base rate to decimal format
+      mutate(loan_base_rate = loan_base_rate/100)
     
     #Save end of period (eop) information in December
     if(m == "12"){
@@ -99,12 +112,6 @@ for (y in years){
     
     
     df = df %>% 
-      #Take only the first appearence of each loan on this file
-      #just to guarantee we dont have duplicates in the same month
-      arrange(loan_start_date) %>% 
-      group_by(loan_id, cnpj8, bank_id) %>% 
-      summarise(across(everything(),first)) %>%
-      ungroup() %>% 
       #Create relationship metric
       mutate(rel_duration = difftime(loan_start_date, firm_bank_start_date,
                                      units = "days")) %>% 
@@ -128,7 +135,17 @@ for (y in years){
       mutate(year = y,
              yearmonth = paste0(year, m)) %>% 
       select(year, yearmonth, cnpj8, bank_id, loan_id, contract_value, 
-             loan_outstanding, loan_base_rate, rel_duration, maturity, rating,)
+             loan_outstanding, loan_base_rate, rel_duration, maturity, rating,
+             loan_start_date)
+    
+    #Take only the first appearence of each loan on this file
+    #just to guarantee we dont have duplicates in the same month
+    df = df %>% 
+      arrange(loan_start_date) %>% 
+      group_by(loan_id, cnpj8, bank_id) %>% 
+      summarise(across(everything(),first)) %>%
+      ungroup() %>% 
+      select(!c("loan_start_date"))
     
       
     
@@ -172,6 +189,14 @@ for (y in years){
 rm(df_a)
 gc()
 
+#Merge with rates dataset to calculate spreads
+df = df %>% 
+  left_join(rates, by = "yearmonth", na_matches = "never")
+rm(rates)
+
+df = df %>% 
+  mutate(spread = (1+loan_base_rate)/(1+cdi)-1)
+
 #take the first observation of each loan
 df = df %>% 
   arrange(yearmonth) %>% 
@@ -183,7 +208,8 @@ df = df %>%
 #aggregate by year and firm, use contract value as weights
 df = df %>% 
   group_by(year, cnpj8) %>% 
-  summarise(across(c("loan_base_rate", "rel_duration", "maturity", "rating"),
+  summarise(across(c("loan_base_rate", "spread",
+                     "rel_duration", "maturity", "rating"),
                    ~weighted.mean(., contract_value, na.rm=T))) %>% 
   ungroup()
 
@@ -192,11 +218,14 @@ df = df %>%
   left_join(dfend, by = c("year", "cnpj8"), na_matches = "never") %>% 
   mutate_at(c("loan_outstanding", "npl"), ~ replace_na(., 0))
 
-rm(df_end)
+rm(dfend)
+
 
 #Merge with rais dataset
 rais = rais %>% 
   left_join(df, by = c("cnpj8", "year"), na_matches = "never")
+
+rm(df)
 
 setwd(data_path)
 write_parquet(rais, "ff2_after_scr.parquet")
@@ -204,7 +233,7 @@ write_parquet(rais, "ff2_after_scr.parquet")
 print(str(rais))
 print(summary(rais))
 
-rm(rais, df)
+rm(rais)
 gc()
 
 

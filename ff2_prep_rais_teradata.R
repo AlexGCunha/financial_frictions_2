@@ -1,5 +1,5 @@
 #####################################################################
-#This code will:
+#This code will do the same as ff2_prep_rais, but for years after 2016:
 # - Take a sample of RAIS firms and construct some metrics, per year
 # - Make the same thing for inspected firms
 # - It needs ff2_inspected_firms_local and its output file to be sent 
@@ -24,31 +24,20 @@ library(readxl)
 library(arrow)
 
 data_path = "Z:/Bernardus/Cunha_Santos_Doornik/Dta_files"
-rais_path = "Z:/DATA/Dta_files/RAIS"
-rais_teradata_path = "Z:/DATA/Dta_files/RAIS_TERADATA"
+rais_path = "Z:/DATA/Dta_files/RAIS_TERADATA"
 output_path = "Z:/Bernardus/Cunha_Santos_Doornik/Output_check"
-
-# local_rais = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/Household Debt/Data'
-# local_teradata = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/UBI-Informality/SD/Data/rais_teradata'
 
 ############################################################
 #Create sample of firms from RAIS files and inspected firms
 ############################################################
 a = Sys.time()
-years = c(2005:2020)
+years = c(2005:2018)
 sample_firms = c()
 for (y in years){
   #Open RAIS file
-  if(y <= 2016){
-    setwd(rais_path)
-    filename = paste0("RAIS_",y,".dta")
-    rais = read_dta(filename)
-  } else {
-    setwd(rais_teradata_path)
-    filename = paste0("RAIS_TERADATA_",y,"12.dta")
-    rais = read_dta(filename)
-  }
-  
+  setwd(rais_path)
+  filename = paste0("RAIS_TERADATA_",y,"12.dta")
+  rais = read_dta(filename)
   
   #Select only 10% of unique firm ids
   firms = rais %>% 
@@ -64,7 +53,7 @@ for (y in years){
   sample_firms = c(sample_firms, firms)
   gc()
   print(y)
-    
+  
 }
 rm(rais, nfirms, firms)
 gc()
@@ -82,9 +71,8 @@ sample_firms = c(sample_firms, inspected_firms)
 sample_firms = unique(sample_firms)
 
 b = Sys.time()
-message = paste0("Time to generate sample of firms: ", 
-                 difftime(b, a, units = "mins"))
-print(message)
+print("Time to generate sample of firms:")
+print(b-a)
 
 ############################################################
 #Construct metrics for these firms
@@ -98,42 +86,33 @@ Mode <- function(x) {
 
 aux_count = 0
 for (y in years){
-  #Open RAIS file
-  if(y <= 2016){
-    setwd(rais_path)
-    filename = paste0("RAIS_",y,".dta")
-    rais = read_dta(filename)
-  } else {
-    setwd(rais_teradata_path)
-    filename = paste0("RAIS_TERADATA_",y,"12.dta")
-    rais = read_dta(filename)
-    
-  }
+  setwd(rais_path)
+  filename = paste0("RAIS_",y,".dta")
+  rais = read_dta(filename)
   
   #Filter companies in our sample
   rais = rais %>%
     mutate(cnpj8 = as.numeric(cnpj8)) %>%
     filter(cnpj8 %in% sample_firms)
-
+  
   #Modifications in some variables
   rais = rais %>% 
     mutate(wage = str_replace(wage_contr, ",", "."),
            wage = as.integer(wage)) %>% 
     mutate_at(c('municipality',"wage","ind_cnae95"),as.integer) %>%
     #filter only individuals working in December
-    mutate(quit_reason = as.character(quit_reason)) %>% 
-    filter(is.na(quit_reason) | quit_reason == "00" | quit_reason == "-1") %>%
+    filter(is.na(quit_reason) | quit_reason == "00") %>%
     group_by(cnpj8) %>% 
     summarise(munic_ibge = Mode(municipality),
               n_formal = length(unique(cpf)),
               wage_bill = sum(wage),
               cnae = Mode(ind_cnae95),
-              ) %>% 
+    ) %>% 
     ungroup() %>% 
     mutate(year = as.integer(y), 
            cnae2 = as.character(cnae),
            cnae2 = as.integer(substr(cnae2,1,2)),
-           )
+    )
   
   #Bind
   if(aux_count == 0){
@@ -155,23 +134,11 @@ df = df %>%
   mutate(year_prior_inspection = year_decision - 1) %>% 
   mutate(n_informal = ifelse(year == year_prior_inspection, n_informal, 
                              NA_integer_))
-  
+
 
 b = Sys.time()
-message = paste0("Time to create RAIS database: ", 
-                 difftime(b, a, units = "mins"))
-print(message)
-
-#Print total formal employment per year
-for (y in years){
-  formal = df %>% 
-    filter(year == y) %>% 
-    summarise(value = sum(n_formal)) %>% 
-    select(value) %>% 
-    pull()
-  
-  print(paste0("Formal employment (10% sample) in ", y, ": ", formal))
-}
+print("Time to create Rais database:")
+print(b-a)
 
 #Save
 setwd(data_path)
