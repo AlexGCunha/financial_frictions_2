@@ -83,13 +83,17 @@ sample_firms = unique(sample_firms)
 
 b = Sys.time()
 message = paste0("Time to generate sample of firms: ", 
-                 difftime(b, a, units = "mins"))
+                 difftime(b, a, units = "mins"), "minutes")
 print(message)
 
 ############################################################
 #Construct metrics for these firms
 ############################################################
 a = Sys.time()
+#open cnae conversion file to be used later
+setwd(data_path)
+conv = read_csv("cnae_conversao.csv")
+
 #Useful mode function
 Mode <- function(x) {
   ux <- unique(x)
@@ -114,6 +118,24 @@ for (y in years){
   rais = rais %>%
     mutate(cnpj8 = as.numeric(cnpj8)) %>%
     filter(cnpj8 %in% sample_firms)
+  
+  #convert cnae 2.0 to cnae 1.0 from 2016 onward
+  if(y >= 2016){
+    rais = rais %>% 
+      #its on numeric format, but the 0 before the number is important for
+      # cnae classification, so lets inpute that where it's missing
+      mutate(ind_sub_cnae20 = as.character(ind_sub_cnae20),
+             nchar_cnae = nchar(ind_sub_cnae20)) %>%
+      mutate(ind_sub_cnae20 = case_when(
+        nchar_cnae == 7 ~ ind_sub_cnae20,
+        T ~ paste0("0", ind_sub_cnae20))
+      ) %>% 
+      mutate(ind_cnae20 = substr(ind_sub_cnae20,1,5))
+    
+    #get cnae 1.0 (cnae95) values
+    rais = rais %>% 
+      left_join(conv, by = "ind_cnae20", na_matches = "never")
+  }
 
   #Modifications in some variables
   rais = rais %>% 
@@ -159,7 +181,7 @@ df = df %>%
 
 b = Sys.time()
 message = paste0("Time to create RAIS database: ", 
-                 difftime(b, a, units = "mins"))
+                 difftime(b, a, units = "mins"), "minutes")
 print(message)
 
 #Print total formal employment per year
