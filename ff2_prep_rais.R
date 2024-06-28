@@ -30,7 +30,7 @@ output_path = "Z:/Bernardus/Cunha_Santos_Doornik/Output_check"
 
 # local_rais = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/Household Debt/Data'
 # local_teradata = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/UBI-Informality/SD/Data/rais_teradata'
-
+# local_data = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/Financial_Frictions/Data'
 ############################################################
 #Create sample of firms from RAIS files and inspected firms
 ############################################################
@@ -120,7 +120,7 @@ for (y in years){
     filter(cnpj8 %in% sample_firms)
   
   #convert cnae 2.0 to cnae 1.0 from 2016 onward
-  if(y >= 2016){
+  if(y >= 2016 & !('ind_cnae95' %in% colnames(rais))){
     rais = rais %>% 
       #its on numeric format, but the 0 before the number is important for
       # cnae classification, so lets inpute that where it's missing
@@ -135,6 +135,8 @@ for (y in years){
     #get cnae 1.0 (cnae95) values
     rais = rais %>% 
       left_join(conv, by = "ind_cnae20", na_matches = "never")
+    
+    print(colnames(rais))
   }
 
   #Modifications in some variables
