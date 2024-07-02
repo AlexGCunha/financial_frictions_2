@@ -31,60 +31,62 @@ output_path = "Z:/Bernardus/Cunha_Santos_Doornik/Output_check"
 # local_rais = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/Household Debt/Data'
 # local_teradata = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/UBI-Informality/SD/Data/rais_teradata'
 # local_data = 'C:/Users/xande/OneDrive/Documentos/Doutorado/RA/Financial_Frictions/Data'
+
+years = c(2005:2020)
+
 ############################################################
 #Create sample of firms from RAIS files and inspected firms
 ############################################################
-a = Sys.time()
-years = c(2005:2020)
-sample_firms = c()
-for (y in years){
-  #Open RAIS file
-  if(y <= 2016){
-    setwd(rais_path)
-    filename = paste0("RAIS_",y,".dta")
-    rais = read_dta(filename)
-  } else {
-    setwd(rais_teradata_path)
-    filename = paste0("RAIS_TERADATA_",y,"12.dta")
-    rais = read_dta(filename)
-  }
-  
-  
-  #Select only 10% of unique firm ids
-  firms = rais %>% 
-    mutate(cnpj8 = as.numeric(cnpj8)) %>% 
-    select(cnpj8) %>% 
-    unique() %>% 
-    pull() 
-  
-  nfirms = round(0.1 * length(firms))
-  firms = sample(firms, nfirms, replace = FALSE)
-  
-  #Bind to other years samples
-  sample_firms = c(sample_firms, firms)
-  gc()
-  print(y)
-    
-}
-rm(rais, nfirms, firms)
-gc()
-
-#Read inspected firms data
-setwd(data_path)
-inspected = read_parquet("inspected_firms.parquet")
-inspected_firms = inspected %>% 
-  select(cnpj8) %>% 
-  pull() %>% 
-  unique()
-
-#add to our sample of firms and remove duplicates
-sample_firms = c(sample_firms, inspected_firms)
-sample_firms = unique(sample_firms)
-
-b = Sys.time()
-message = paste0("Time to generate sample of firms: ", 
-                 difftime(b, a, units = "mins"), "minutes")
-print(message)
+# a = Sys.time()
+# sample_firms = c()
+# for (y in years){
+#   #Open RAIS file
+#   if(y <= 2016){
+#     setwd(rais_path)
+#     filename = paste0("RAIS_",y,".dta")
+#     rais = read_dta(filename)
+#   } else {
+#     setwd(rais_teradata_path)
+#     filename = paste0("RAIS_TERADATA_",y,"12.dta")
+#     rais = read_dta(filename)
+#   }
+#   
+#   
+#   #Select only 10% of unique firm ids
+#   firms = rais %>% 
+#     mutate(cnpj8 = as.numeric(cnpj8)) %>% 
+#     select(cnpj8) %>% 
+#     unique() %>% 
+#     pull() 
+#   
+#   nfirms = round(0.1 * length(firms))
+#   firms = sample(firms, nfirms, replace = FALSE)
+#   
+#   #Bind to other years samples
+#   sample_firms = c(sample_firms, firms)
+#   gc()
+#   print(y)
+#     
+# }
+# rm(rais, nfirms, firms)
+# gc()
+# 
+# #Read inspected firms data
+# setwd(data_path)
+# inspected = read_parquet("inspected_firms.parquet")
+# inspected_firms = inspected %>% 
+#   select(cnpj8) %>% 
+#   pull() %>% 
+#   unique()
+# 
+# #add to our sample of firms and remove duplicates
+# sample_firms = c(sample_firms, inspected_firms)
+# sample_firms = unique(sample_firms)
+# 
+# b = Sys.time()
+# message = paste0("Time to generate sample of firms: ", 
+#                  difftime(b, a, units = "mins"), "minutes")
+# print(message)
 
 ############################################################
 #Construct metrics for these firms
@@ -116,9 +118,15 @@ for (y in years){
   
   #Filter companies in our sample
   rais = rais %>%
-    mutate(cnpj8 = as.numeric(cnpj8)) %>%
-    filter(cnpj8 %in% sample_firms)
+    # filter(cnpj8 %in% sample_firms) %>% 
+    mutate(cnpj8 = as.numeric(cnpj8))
   
+  #Print a summary for the year 2016
+  if(y == 2016){
+    print(str(rais))
+    print(summary(rais))
+  }
+    
   #convert cnae 2.0 to cnae 1.0 from 2016 onward
   if(y >= 2016 & !('ind_cnae95' %in% colnames(rais))){
     rais = rais %>% 
@@ -136,7 +144,7 @@ for (y in years){
     rais = rais %>% 
       left_join(conv, by = "ind_cnae20", na_matches = "never")
     
-    print(colnames(rais))
+    #print(colnames(rais))
   }
 
   #Modifications in some variables
@@ -194,12 +202,12 @@ for (y in years){
     select(value) %>% 
     pull()
   
-  print(paste0("Formal employment (10% sample) in ", y, ": ", formal))
+  print(paste0("Formal employment in ", y, ": ", formal))
 }
 
 #Save
 setwd(data_path)
-write_parquet("ff2_rais.parquet")
+write_parquet(df, "ff2_rais.parquet")
 rm(list = ls())
 gc()
 
